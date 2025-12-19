@@ -1,55 +1,23 @@
-# ChronoPhot-visualization-module
-Visualization module for long-term fiber photometry data, generating SVG plots of corrected signals, ΔF/F, and Z-score traces.
+ChronoPhot-View
+Overview
 
-# ChronoPhot-View
+ChronoPhot-View is a Python-based visualization module for long-term fiber photometry data. It generates publication-ready SVG figures and facilitates quality control of extended recordings, typically spanning several hours. This tool is designed to visualize signals obtained from long-duration photometry experiments and to support inspection of signal stability and long-term dynamics after preprocessing.
 
-ChronoPhot-View is a Python-based visualization module for long-term fiber photometry data.
-This script is designed to generate publication-ready figures and to facilitate quality control
-of extended photometry recordings.
+What This Tool Does
 
-## Overview
+ChronoPhot-View loads preprocessed fiber photometry CSV files and produces continuous visualizations of fluorescence signals across extended recording periods. It supports visualization of corrected fluorescence signals, ΔF/F traces, and Z-score–normalized signals, enabling users to evaluate baseline stability, slow signal drift, and long-term fluctuations in neural activity. By presenting multiple signal representations within a unified visualization workflow, the module facilitates systematic quality control and efficient generation of figures for long-term recordings.
 
-The code processes preprocessed fiber photometry data files and generates SVG plots of
-raw signals, tdTomato-corrected signals, ΔF/F, and Z-score–normalized traces across long
-recording periods. It is optimized for long-term recordings (e.g., several hours) and
-automatically excludes initial zero or baseline segments when specified.
+Design Philosophy
 
-ChronoPhot-View is intended to be used as a companion visualization tool to batch analysis
-pipelines, enabling inspection and presentation of photometry signals after preprocessing.
+This module is optimized for long-duration recordings rather than trial-aligned or event-triggered analyses. It is intended to be used as a companion visualization tool for batch photometry analysis pipelines, focusing on inspection and presentation of already preprocessed data. ChronoPhot-View supports batch processing of multiple datasets and automatically generates scalable vector graphics (SVG) figures suitable for direct inclusion in publications. Optional exclusion of initial zero or baseline segments is supported to improve the interpretability of long-term traces.
 
-## Features
+Intended Use
 
-- Visualization of long-term fiber photometry recordings
-- tdTomato-based regression correction for motion and bleaching
-- Signal detrending and normalization
-- ΔF/F and Z-score trace plotting
-- Automatic generation of SVG figures suitable for publication
-- Batch processing of multiple CSV files
+ChronoPhot-View focuses exclusively on visualization and post-processing inspection rather than raw signal correction or preprocessing. As such, it complements existing photometry analysis pipelines by providing a lightweight and reproducible solution for inspecting, validating, and presenting fiber photometry data following preprocessing.
 
-## Input
+License
 
-- CSV files containing fiber photometry signals
-- Signal channels for calcium-dependent fluorescence and control (tdTomato)
-
-## Output
-
-- SVG plots of:
-  - Raw and corrected fluorescence signals
-  - ΔF/F traces
-  - Z-score–normalized signals
-- Output files are generated automatically for each input dataset
-
-## Requirements
-
-- Python 3.x
-- numpy
-- pandas
-- matplotlib
-- scipy
-
-## Usage
-
-Edit the input and output directory paths in the script as needed, then run:
+This software is distributed under the MIT License.
 
 ```bash
 python chronophot_view.py
