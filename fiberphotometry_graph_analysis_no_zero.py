@@ -1,13 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Photometry Control vs Test (portable GitHub-ready)
+Photometry Control vs Test (portable GitHub-ready; paper-matched)
 
 - Batch process raw CSVs in Control/Test folders
 - Photobleaching correction
 - Motion correction (405 -> 465 regression)
 - Z-score normalization using a global baseline interval
 - Saves per-animal processed CSVs and group mean±SEM SVG
+
+Paper-matched note (important for reproducibility):
+- This script intentionally passes pandas Series into mean()/std() where appropriate,
+  so that std() uses pandas default ddof=1 (matching typical "paper-used" scripts).
+- Avoids .values for Z-score and photobleaching steps to prevent ddof=0 differences.
 
 Default folder layout (recommended):
 repo/
@@ -47,10 +52,18 @@ DEFAULT_PLOT_UPPER_SEC = 24300   # 6 h 45 min
 # Correction / normalization functions
 # -----------------------------
 def correct_photobleaching(ts, ys, pre_interval, post_interval):
+    """
+    Linear photobleaching correction using means from two windows.
+
+    IMPORTANT:
+    - Designed to behave like typical paper-used implementations using pandas Series.
+    - No fallback paths that change outputs silently.
+    """
     pre_mask = (ts >= pre_interval[0]) & (ts <= pre_interval[1])
     post_mask = (ts >= post_interval[0]) & (ts <= post_interval[1])
     if pre_mask.sum() < 5 or post_mask.sum() < 5:
         raise ValueError("Baseline intervals too short for photobleaching correction.")
+
     pre_mean = ys[pre_mask].mean()
     post_mean = ys[post_mask].mean()
     slope = (post_mean - pre_mean) / (post_interval[1] - pre_interval[0])
@@ -59,21 +72,35 @@ def correct_photobleaching(ts, ys, pre_interval, post_interval):
 
 
 def correct_motion(fluo465, fluo405):
+    """
+    Motion correction by linear regression (405 fitted to 465).
+
+    NOTE:
+    - Uses numpy lstsq; passing Series or ndarray yields equivalent results in practice.
+    """
     if len(fluo405) < 10:
         raise ValueError("Not enough data points for motion correction.")
-    A = np.vstack([fluo405, np.ones_like(fluo405)]).T
-    coeffs, _, _, _ = np.linalg.lstsq(A, fluo465, rcond=None)
+    A = np.vstack([np.asarray(fluo405), np.ones_like(np.asarray(fluo405))]).T
+    coeffs, _, _, _ = np.linalg.lstsq(A, np.asarray(fluo465), rcond=None)
     fitted = A @ coeffs
-    corrected = fluo465 - (fitted - np.mean(fitted))
-    return fluo405, corrected
+    corrected = np.asarray(fluo465) - (fitted - np.mean(fitted))
+    return np.asarray(fluo405), corrected
 
 
 def transform_to_zscore(ts, ys, baseline_interval=(0, 60)):
+    """
+    Z-score normalization using a global baseline interval.
+
+    CRITICAL (paper-matched):
+    - If ys is a pandas Series, .std() uses ddof=1 by default (matching many paper scripts).
+    - To preserve that behavior, call this with pandas Series (not .values).
+    """
     mask = (ts >= baseline_interval[0]) & (ts <= baseline_interval[1])
     if mask.sum() < 5:
         raise ValueError("Baseline interval too short for Z-score.")
+
     mu = ys[mask].mean()
-    sd = ys[mask].std()
+    sd = ys[mask].std()  # pandas default ddof=1 when ys is Series
     if sd == 0:
         raise ValueError("Cannot Z-score (std=0).")
     return (ys - mu) / sd
@@ -162,10 +189,10 @@ def process_folder(input_folder, output_folder,
         pre_interval = baseline_pre_interval
         post_interval = (max_time - baseline_post_start_offset, max_time - baseline_post_end_offset)
 
-        # Photobleaching correction
+        # Photobleaching correction (paper-matched: pass Series, not .values)
         try:
-            df["fluo465-pbc"] = correct_photobleaching(df["time"].values, df["F-465"].values, pre_interval, post_interval)
-            df["fluo405-pbc"] = correct_photobleaching(df["time"].values, df["AF-405"].values, pre_interval, post_interval)
+            df["fluo465-pbc"] = correct_photobleaching(df["time"], df["F-465"], pre_interval, post_interval)
+            df["fluo405-pbc"] = correct_photobleaching(df["time"], df["AF-405"], pre_interval, post_interval)
         except Exception as e:
             print(f"⚠ Photobleaching correction failed -> skip: {e}")
             continue
@@ -177,14 +204,17 @@ def process_folder(input_folder, output_folder,
 
         # Motion correction
         try:
-            df["fluo405-maf"], df["fluo465-mac"] = correct_motion(df["fluo465-pbc"].values, df["fluo405-pbc"].values)
+            fluo405_maf, fluo465_mac = correct_motion(df["fluo465-pbc"], df["fluo405-pbc"])
+            # Store as Series aligned to df index
+            df["fluo405-maf"] = pd.Series(fluo405_maf, index=df.index)
+            df["fluo465-mac"] = pd.Series(fluo465_mac, index=df.index)
         except Exception as e:
             print(f"⚠ Motion correction failed -> skip: {e}")
             continue
 
-        # Z-score
+        # Z-score (paper-matched: pass Series, not .values; preserves ddof=1 behavior)
         try:
-            df["fluo465-zsc"] = transform_to_zscore(df["time"].values, df["fluo465-mac"].values,
+            df["fluo465-zsc"] = transform_to_zscore(df["time"], df["fluo465-mac"],
                                                    baseline_interval=baseline_interval_global)
         except Exception as e:
             print(f"⚠ Z-score failed -> skip: {e}")
@@ -276,7 +306,7 @@ def plot_control_vs_test(control_data, test_data, out_svg):
 def main():
     repo_dir = os.path.dirname(os.path.abspath(__file__))
 
-    parser = argparse.ArgumentParser(description="Fiber photometry Control vs Test pipeline (GitHub-ready).")
+    parser = argparse.ArgumentParser(description="Fiber photometry Control vs Test pipeline (GitHub-ready; paper-matched).")
     parser.add_argument("--control", default=os.path.join(repo_dir, "control"),
                         help="Folder containing raw Control CSV files (default: ./control)")
     parser.add_argument("--test", default=os.path.join(repo_dir, "test"),
